@@ -1,0 +1,204 @@
+%% Script Simscape Fluids - Rede de Ar Comprimido (Moist Air - MA)
+% Autor: André Souza - 2025
+% Versão: somente blocos do domínio Moist Air (MA)
+% Layout paramétrico + arrangeSystem
+
+modelName = 'Modelo_Rede_Ar_Comprimido_MA';
+if bdIsLoaded(modelName)
+    close_system(modelName,0);
+end
+new_system(modelName);
+open_system(modelName);
+
+%% =========================
+% Parâmetros de Layout
+%% =========================
+x0      = 300;   % ponto X inicial da primeira peça (exceto compressor/TJ)
+dxPipe  = 150;   % espaçamento horizontal entre blocos em série
+dxTJ    = 180;   % espaçamento quando tiver T-Junction
+dy      = 220;   % distância vertical entre derivação 1 e 2
+yTop    = 80;    % linha da derivação 1
+hBlk    = 40;    % altura padrão de cada bloco
+wBlk    = 100;   % largura padrão
+
+%% =========================
+% Compressor (Reservoir / entrada de ar)
+%% =========================
+compBlk = 'Compressor';
+add_block('fl_lib/Moist Air/Elements/Reservoir (MA)', ...
+    [modelName '/' compBlk], ...
+    'Position', [50 100 150 150]);
+
+%% =========================
+% T-Junction principal (splitter para D1 e D2)
+%% =========================
+mainTJ = 'Main_TJ';
+add_block('SimscapeFluids_lib/Moist Air/Pipes & Fittings/T-Junction (MA)', ...
+    [modelName '/' mainTJ], ...
+    'Position',[200 110 260 170]);
+
+%% =========================
+% DERIVAÇÃO 1 (topo)
+%% =========================
+% Pipe inicial 10 m
+D1_Pipe1 = 'D1_Pipe1';
+add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+    [modelName '/' D1_Pipe1], ...
+    'Position',[x0 yTop x0+wBlk yTop+hBlk]);
+set_param([modelName '/' D1_Pipe1],'Length','10');
+
+% Curva (restrição local)
+D1_Curva1 = 'D1_Curva1';
+add_block('fl_lib/Moist Air/Elements/Local Restriction (MA)', ...
+    [modelName '/' D1_Curva1], ...
+    'Position',[x0+dxPipe yTop x0+dxPipe+wBlk yTop+hBlk]);
+
+% Pipe 10 m
+D1_Pipe2 = 'D1_Pipe2';
+add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+    [modelName '/' D1_Pipe2], ...
+    'Position',[x0+2*dxPipe yTop x0+2*dxPipe+wBlk yTop+hBlk]);
+set_param([modelName '/' D1_Pipe2],'Length','10');
+
+% Curva 2
+D1_Curva2 = 'D1_Curva2';
+add_block('fl_lib/Moist Air/Elements/Local Restriction (MA)', ...
+    [modelName '/' D1_Curva2], ...
+    'Position',[x0+3*dxPipe yTop x0+3*dxPipe+wBlk yTop+hBlk]);
+
+% Pipe 5 m
+D1_Pipe3 = 'D1_Pipe3';
+add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+    [modelName '/' D1_Pipe3], ...
+    'Position',[x0+4*dxPipe yTop x0+4*dxPipe+wBlk yTop+hBlk]);
+set_param([modelName '/' D1_Pipe3],'Length','5');
+
+% Tubo final com 4 saídas de 5 m + T-junctions e sensores
+for i=1:4
+    blkPipe = ['D1_Pipe4_' num2str(i)];
+    xBase   = x0 + (4+i)*dxPipe;
+    add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+        [modelName '/' blkPipe], ...
+        'Position',[xBase yTop xBase+wBlk yTop+hBlk]);
+    set_param([modelName '/' blkPipe],'Length','5');
+
+    tj = ['D1_TJ' num2str(i)];
+    add_block('SimscapeFluids_lib/Moist Air/Pipes & Fittings/T-Junction (MA)', ...
+        [modelName '/' tj], ...
+        'Position',[xBase+dxPipe-20 yTop-20 xBase+dxPipe+30 yTop+hBlk+20]);
+
+    if i == 1
+        add_line(modelName,[D1_Pipe3 '/RConn1'], [blkPipe '/LConn1'],'autorouting','on');
+    else
+        prev = ['D1_Pipe4_' num2str(i-1)];
+        add_line(modelName,[prev '/RConn1'], [blkPipe '/LConn1'],'autorouting','on');
+    end
+    add_line(modelName,[blkPipe '/RConn1'], [tj '/LConn1'],'autorouting','on');
+
+    sensor = ['D1_Out' num2str(i)];
+    add_block('fl_lib/Moist Air/Sensors/Flow Rate Sensor (MA)', ...
+        [modelName '/' sensor], ...
+        'Position',[xBase+dxPipe+80 yTop+80 xBase+dxPipe+180 yTop+120]);
+    add_line(modelName,[tj '/RConn1'], [sensor '/LConn1'],'autorouting','on');
+
+    atm = ['D1_Atmos_' num2str(i)];
+    add_block('fl_lib/Moist Air/Elements/Reservoir (MA)', ...
+        [modelName '/' atm], ...
+        'Position',[xBase+dxPipe+220 yTop+80 xBase+dxPipe+320 yTop+120]);
+    add_line(modelName,[sensor '/RConn1'], [atm '/LConn1'],'autorouting','on');
+end
+
+%% =========================
+% DERIVAÇÃO 2 (base)
+%% =========================
+yBot = yTop + dy;
+
+D2_Pipe1 = 'D2_Pipe1';
+add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+    [modelName '/' D2_Pipe1], ...
+    'Position',[x0 yBot x0+wBlk yBot+hBlk]);
+set_param([modelName '/' D2_Pipe1],'Length','30');
+
+D2_Curva1 = 'D2_Curva1';
+add_block('fl_lib/Moist Air/Elements/Local Restriction (MA)', ...
+    [modelName '/' D2_Curva1], ...
+    'Position',[x0+dxPipe yBot x0+dxPipe+wBlk yBot+hBlk]);
+
+D2_Pipe2a = 'D2_Pipe2a';
+add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+    [modelName '/' D2_Pipe2a], ...
+    'Position',[x0+2*dxPipe yBot x0+2*dxPipe+wBlk yBot+hBlk]);
+set_param([modelName '/' D2_Pipe2a],'Length','10');
+
+for i=1:2
+    blkPipe = ['D2_Pipe2b_' num2str(i)];
+    xBase   = x0 + (2+i)*dxPipe;
+    add_block('fl_lib/Moist Air/Elements/Pipe (MA)', ...
+        [modelName '/' blkPipe], ...
+        'Position',[xBase yBot xBase+wBlk yBot+hBlk]);
+    set_param([modelName '/' blkPipe],'Length','5');
+
+    tj = ['D2_TJ' num2str(i)];
+    add_block('SimscapeFluids_lib/Moist Air/Pipes & Fittings/T-Junction (MA)', ...
+        [modelName '/' tj], ...
+        'Position',[xBase+dxPipe-20 yBot-20 xBase+dxPipe+30 yBot+hBlk+20]);
+
+    if i==1
+        add_line(modelName,[D2_Pipe2a '/RConn1'], [blkPipe '/LConn1'],'autorouting','on');
+    else
+        add_line(modelName,['D2_Pipe2b_' num2str(i-1) '/RConn1'], [blkPipe '/LConn1'],'autorouting','on');
+    end
+    add_line(modelName,[blkPipe '/RConn1'], [tj '/LConn1'],'autorouting','on');
+
+    sensor = ['D2_Out' num2str(i)];
+    add_block('fl_lib/Moist Air/Sensors/Flow Rate Sensor (MA)', ...
+        [modelName '/' sensor], ...
+        'Position',[xBase+dxPipe+80 yBot+120 xBase+dxPipe+180 yBot+160]);
+    add_line(modelName,[tj '/RConn1'], [sensor '/LConn1'],'autorouting','on');
+
+    atm = ['D2_Atmos_' num2str(i)];
+    add_block('fl_lib/Moist Air/Elements/Reservoir (MA)', ...
+        [modelName '/' atm], ...
+        'Position',[xBase+dxPipe+220 yBot+120 xBase+dxPipe+320 yBot+160]);
+    add_line(modelName,[sensor '/RConn1'], [atm '/LConn1'],'autorouting','on');
+end
+
+%% =========================
+% Conexões principais
+%% =========================
+phComp     = get_param([modelName '/' compBlk] ,'PortHandles');
+phTJ       = get_param([modelName '/' mainTJ] ,'PortHandles');
+phD1_Pipe1 = get_param([modelName '/' D1_Pipe1],'PortHandles');
+phD1_Curva1= get_param([modelName '/' D1_Curva1],'PortHandles');
+phD1_Pipe2 = get_param([modelName '/' D1_Pipe2],'PortHandles');
+phD1_Curva2= get_param([modelName '/' D1_Curva2],'PortHandles');
+phD1_Pipe3 = get_param([modelName '/' D1_Pipe3],'PortHandles');
+phD2_Pipe1 = get_param([modelName '/' D2_Pipe1],'PortHandles');
+phD2_Curva1= get_param([modelName '/' D2_Curva1],'PortHandles');
+phD2_Pipe2a= get_param([modelName '/' D2_Pipe2a],'PortHandles');
+
+% Compressor -> T-Junction
+add_line(modelName,double(phComp.LConn(1)),double(phTJ.LConn(1)),'autorouting','on');
+% Saída 1 da T-Junction -> Derivação 1
+add_line(modelName,double(phTJ.RConn(1)), double(phD1_Pipe1.LConn(1)),'autorouting','on');
+% Saída 2 da T-Junction -> Derivação 2
+add_line(modelName,double(phTJ.RConn(2)), double(phD2_Pipe1.LConn(1)),'autorouting','on');
+
+% Derivação 1 em série
+add_line(modelName,double(phD1_Pipe1.RConn(1)),double(phD1_Curva1.LConn(1)),'autorouting','on');
+add_line(modelName,double(phD1_Curva1.RConn(1)),double(phD1_Pipe2.LConn(1)),'autorouting','on');
+add_line(modelName,double(phD1_Pipe2.RConn(1)),double(phD1_Curva2.LConn(1)),'autorouting','on');
+add_line(modelName,double(phD1_Curva2.RConn(1)),double(phD1_Pipe3.LConn(1)),'autorouting','on');
+
+% Derivação 2 em série
+add_line(modelName,double(phD2_Pipe1.RConn(1)),double(phD2_Curva1.LConn(1)),'autorouting','on');
+add_line(modelName,double(phD2_Curva1.RConn(1)),double(phD2_Pipe2a.LConn(1)),'autorouting','on');
+
+%% =========================
+% Ajuste automático do diagrama
+%% =========================
+Simulink.BlockDiagram.arrangeSystem(modelName);
+
+%% Salvar modelo (opcional)
+% save_system(modelName);
+% disp(['Modelo criado e salvo: ' modelName]);

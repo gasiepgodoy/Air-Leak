@@ -206,8 +206,11 @@ add_line(modelName,double(phD2_Curva1.RConn(1)),double(phD2_Pipe2a.LConn(1)),'au
 % Conecte o Solver à rede (pode ser na porta do Compressor)
 phSolver = get_param([modelName '/' solverBlk],'PortHandles');
 phComp   = get_param([modelName '/' compBlk],'PortHandles');
-add_line(modelName, phSolver.RConn(1), phComp.LConn(1), 'autorouting','on');
 
+phSolver
+get_param(phComp,'PortHandles')
+
+% add_line(modelName, phSolver.RConn(1), phComp.RConn(1), 'autorouting','on');
 
 
 %% =========================
